@@ -62,7 +62,7 @@ def lambda_handler(event, context: DurableContext) -> dict:
     )
 
     # ProcessPayment
-    payment = context.invoke(
+    event = context.invoke(
         "PaymentFunction",
         event,
         name="ProcessPayment"
