@@ -121,7 +121,7 @@ def lambda_handler(event, context: DurableContext) -> dict:
     warehouse_items: BatchResult[dict] = context.map(
         event.get("items", []),
         map_items,
-        name="map"
+        name="GetStock"
     )
 
     available_items = context.step(
