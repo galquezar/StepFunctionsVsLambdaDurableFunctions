@@ -50,6 +50,7 @@ def validate_stock(step_context: StepContext, items: list) -> list:
     Returns:
         Subset of items where units > 0.
     """
+    step_context.logger.info(f"Removing out of stock items")
     return [item for item in items if item.get("units", 0) > 0]
 
 
@@ -60,10 +61,11 @@ def calculate_total(step_context: StepContext, items: list) -> float:
     Returns:
         Total order price as a float; 0.0 if the list is empty.
     """
+    step_context.logger.info(f"Calculating order total")
     return sum(item.get("price", 0) for item in items)
 
 
-def send_approval_request(callback, request_id: str) -> None:
+def send_approval_request(ctx: DurableContext, callback, request_id: str) -> None:
     """Publish the callback ID to OrdersQueue so the warehouse can resume this workflow.
 
     The warehouse system must call back with the callback_id to unblock callback.result().
@@ -72,7 +74,8 @@ def send_approval_request(callback, request_id: str) -> None:
         callback: Durable callback object whose callback_id is the resume token.
         request_id: AWS request ID of the current Lambda invocation, used for correlation.
     """
-    print(f"CallbackID: {callback.callback_id}")
+    ctx.logger.info(f"Sending message to warehose to confirm shipment")
+    ctx.logger.info(f"CallbackID: {callback.callback_id}")
     sqs.send_message(
         QueueUrl=ORDERS_QUEUE_URL,
         MessageBody=json.dumps({
@@ -81,6 +84,10 @@ def send_approval_request(callback, request_id: str) -> None:
         }),
     )
 
+@durable_step
+def send_email(step_context: StepContext, event: dict) -> dict:
+    step_context.logger.info(f"Sending email to customer")
+    return event
 
 @durable_execution
 def lambda_handler(event, context: DurableContext) -> dict:
@@ -92,6 +99,7 @@ def lambda_handler(event, context: DurableContext) -> dict:
       3. CalculateTotal — computes event['total'].
       4. ProcessPayment — delegates to PaymentFunction Lambda.
       5. ShipOrder — suspends until the warehouse confirms shipment via SQS callback.
+      6. SendEmail - send email to customer to confirm shipment.
 
     Args:
         event: Order payload. Expected keys: 'items' (list of item dicts with 'id' and 'price').
@@ -125,8 +133,13 @@ def lambda_handler(event, context: DurableContext) -> dict:
 
     # Execution suspends here until the warehouse calls back with the callback_id.
     callback = context.create_callback(name="ShipOrder")
-    send_approval_request(callback, context.lambda_context.aws_request_id)
+    send_approval_request(context, callback, context.lambda_context.aws_request_id)
     result = callback.result()
-    print(result)
+    context.logger.info(result)
+
+    result = context.step(
+        send_email(event),
+        name="SendEmail"
+    )
 
     return event
