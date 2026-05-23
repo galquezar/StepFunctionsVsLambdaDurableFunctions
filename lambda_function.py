@@ -64,19 +64,19 @@ def calculate_total(step_context: StepContext, items: list) -> float:
     step_context.logger.info(f"Calculating order total")
     return sum(item.get("price", 0) for item in items)
 
-
-def send_approval_request(ctx: DurableContext, callback, request_id: str) -> None:
+@durable_step
+def send_approval_request(step_context: StepContext, callback, request_id: str) -> None:
     """Publish the callback ID to OrdersQueue so the warehouse can resume this workflow.
 
     The warehouse system must call back with the callback_id to unblock callback.result().
 
     Args:
-        ctx: DurableContext used for structured logging.
+        step_context: Injected by the durable SDK; provides logging and replay state.
         callback: Durable callback object whose callback_id is the resume token.
         request_id: AWS request ID of the current Lambda invocation, used for correlation.
     """
-    ctx.logger.info(f"Sending message to warehose to confirm shipment")
-    ctx.logger.info(f"CallbackID: {callback.callback_id}")
+    step_context.logger.info(f"Sending message to warehose to confirm shipment")
+    step_context.logger.info(f"CallbackID: {callback.callback_id}")
     sqs.send_message(
         QueueUrl=ORDERS_QUEUE_URL,
         MessageBody=json.dumps({
@@ -136,14 +136,18 @@ def lambda_handler(event, context: DurableContext) -> dict:
     )
 
     event = context.invoke(
-        "PaymentFunction",
+        "PaymentFunction:1",
         event,
         name="ProcessPayment"
     )
 
     # Execution suspends here until the warehouse calls back with the callback_id.
-    callback = context.create_callback(name="ShipOrder")
-    send_approval_request(context, callback, context.lambda_context.aws_request_id)
+    callback = context.create_callback(name="ShipOrder-Callback")
+
+    context.step(
+        send_approval_request(callback, context.lambda_context.aws_request_id),
+        name="ShipOrder"
+    )
     result = callback.result()
     context.logger.info(result)
 
@@ -152,4 +156,5 @@ def lambda_handler(event, context: DurableContext) -> dict:
         name="SendEmail"
     )
 
+    context.logger.info(event)
     return event
