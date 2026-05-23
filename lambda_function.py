@@ -71,6 +71,7 @@ def send_approval_request(ctx: DurableContext, callback, request_id: str) -> Non
     The warehouse system must call back with the callback_id to unblock callback.result().
 
     Args:
+        ctx: DurableContext used for structured logging.
         callback: Durable callback object whose callback_id is the resume token.
         request_id: AWS request ID of the current Lambda invocation, used for correlation.
     """
@@ -86,6 +87,15 @@ def send_approval_request(ctx: DurableContext, callback, request_id: str) -> Non
 
 @durable_step
 def send_email(step_context: StepContext, event: dict) -> dict:
+    """Send a shipment confirmation email to the customer.
+
+    Args:
+        step_context: Injected by the durable SDK; provides logging and replay state.
+        event: Order payload forwarded as-is; expected to contain customer email details.
+
+    Returns:
+        The event dict unchanged (placeholder for email service integration).
+    """
     step_context.logger.info(f"Sending email to customer")
     return event
 
