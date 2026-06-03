@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Order processing workflow with durable Lambda functions and Step Functions
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 300
+    MemorySize: 256
+    Architectures:
+      - x86_64
+
+Resources:
+
+  ##########################################################################
+  # Data stores
+  ##########################################################################
+
+  WarehouseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Warehouse
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  OrdersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: OrdersQueue
+      VisibilityTimeout: 300
+
+  ##########################################################################
+  # IAM Roles
+  ##########################################################################
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-LambdaExecutionRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WarehouseTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !GetAtt WarehouseTable.Arn
+        - PolicyName: OrdersQueueAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueUrl
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt OrdersQueue.Arn
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt PaymentFunction.Arn
+                  - !Sub '${PaymentFunction.Arn}:*'
+
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-StateMachineRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StateMachinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !GetAtt WarehouseTable.Arn
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt PaymentFunction.Arn
+                  - !Sub '${PaymentFunction.Arn}:*'
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt OrdersQueue.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+
+  ##########################################################################
+  # Lambda Functions
+  ##########################################################################
+
+  OrderProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: OrderProcessingFunction
+      CodeUri: .
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Durable order processing pipeline
+
+  PaymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: PaymentFunction
+      CodeUri: payment/
+      Handler: payment_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Payment processing function
+
+  # Publishes version 1 of PaymentFunction — referenced as PaymentFunction:1 by the durable SDK
+  PaymentFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref PaymentFunction
+      Description: v1
+
+  ##########################################################################
+  # Step Functions State Machine
+  ##########################################################################
+
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/states/${AWS::StackName}-ProcessOrder'
+      RetentionInDays: 30
+
+  ProcessOrderStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: ProcessOrder
+      DefinitionUri: ProcessOrder.asl.json
+      DefinitionSubstitutions:
+        PaymentFunctionArn: !GetAtt PaymentFunction.Arn
+        OrdersQueueUrl: !Ref OrdersQueue
+      Role: !GetAtt StateMachineRole.Arn
+      Logging:
+        Level: ERROR
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+      Tracing:
+        Enabled: true
+
+Outputs:
+  WarehouseTableName:
+    Description: DynamoDB Warehouse table name
+    Value: !Ref WarehouseTable
+
+  OrdersQueueUrl:
+    Description: SQS Orders queue URL
+    Value: !Ref OrdersQueue
+
+  OrderProcessingFunctionArn:
+    Description: Order Processing Lambda function ARN
+    Value: !GetAtt OrderProcessingFunction.Arn
+
+  PaymentFunctionArn:
+    Description: Payment Lambda function ARN
+    Value: !GetAtt PaymentFunction.Arn
+
+  ProcessOrderStateMachineArn:
+    Description: Process Order state machine ARN
+    Value: !Ref ProcessOrderStateMachine
