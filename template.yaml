@@ -149,6 +149,9 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Description: Durable order processing pipeline
+      DurableConfig:
+        ExecutionTimeout: 86400
+        RetentionPeriodInDays: 14
 
   PaymentFunction:
     Type: AWS::Serverless::Function
