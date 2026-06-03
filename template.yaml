@@ -5,8 +5,8 @@ Description: Order processing workflow with durable Lambda functions and Step Fu
 Globals:
   Function:
     Runtime: python3.12
-    Timeout: 300
-    MemorySize: 256
+    Timeout: 60
+    MemorySize: 128
     Architectures:
       - x86_64
 
