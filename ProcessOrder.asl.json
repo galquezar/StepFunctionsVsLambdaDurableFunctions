@@ -14,7 +14,7 @@
             "Type": "Task",
             "Resource": "arn:aws:states:::dynamodb:getItem",
             "Arguments": {
-              "TableName": "Warehouse",
+              "TableName": "${WarehouseTableName}",
               "Key": {
                 "id": {
                   "N": "{% $string($states.input.id) %}"

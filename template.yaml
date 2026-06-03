@@ -198,6 +198,7 @@ Resources:
       DefinitionSubstitutions:
         PaymentFunctionArn: !GetAtt PaymentFunction.Arn
         OrdersQueueUrl: !Ref OrdersQueue
+        WarehouseTableName: !Ref WarehouseTable
       Role: !GetAtt StateMachineRole.Arn
       Logging:
         Level: ERROR
