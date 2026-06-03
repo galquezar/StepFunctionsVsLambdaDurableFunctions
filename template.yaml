@@ -18,6 +18,8 @@ Resources:
 
   WarehouseTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: Warehouse
       BillingMode: PAY_PER_REQUEST
@@ -30,9 +32,12 @@ Resources:
 
   OrdersQueue:
     Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       QueueName: OrdersQueue
       VisibilityTimeout: 300
+      MessageRetentionPeriod: 345600
 
   ##########################################################################
   # IAM Roles
@@ -85,8 +90,8 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - !GetAtt PaymentFunction.Arn
-                  - !Sub '${PaymentFunction.Arn}:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PaymentFunction'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PaymentFunction:*'
 
   StateMachineRole:
     Type: AWS::IAM::Role
@@ -149,6 +154,10 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Description: Durable order processing pipeline
+      Environment:
+        Variables:
+          WAREHOUSE_TABLE_NAME: !Ref WarehouseTable
+          ORDERS_QUEUE_URL: !Ref OrdersQueue
       DurableConfig:
         ExecutionTimeout: 86400
         RetentionPeriodInDays: 14
@@ -175,6 +184,8 @@ Resources:
 
   StateMachineLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/states/${AWS::StackName}-ProcessOrder'
       RetentionInDays: 30
