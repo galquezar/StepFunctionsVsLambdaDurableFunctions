@@ -82,7 +82,7 @@
       "Output": "{% $states.result.Payload %}",
       "Arguments": {
         "Payload": "{% $states.input %}",
-        "FunctionName": "arn:aws:lambda:ap-southeast-2:161630849989:function:PaymentFunction:$LATEST"
+        "FunctionName": "${PaymentFunctionArn}"
       },
       "Retry": [
         {
@@ -105,7 +105,7 @@
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Arguments": {
         "MessageBody": "{% $states.context.Task.Token %}",
-        "QueueUrl": "https://sqs.ap-southeast-2.amazonaws.com/161630849989/OrdersQueue"
+        "QueueUrl": "${OrdersQueueUrl}"
       },
       "Next": "SendEmail"
     },
