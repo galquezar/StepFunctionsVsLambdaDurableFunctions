@@ -8,6 +8,7 @@ warehouse confirmation before completing.
 """
 
 import json
+import os
 import boto3
 
 from aws_durable_execution_sdk_python.config import Duration
@@ -15,10 +16,10 @@ from aws_durable_execution_sdk_python.context import BatchResult, DurableContext
 from aws_durable_execution_sdk_python.execution import durable_execution
 
 dynamodb = boto3.resource("dynamodb")
-WAREHOUSE_TABLE = dynamodb.Table("Warehouse")
+WAREHOUSE_TABLE = dynamodb.Table(os.environ["WAREHOUSE_TABLE_NAME"])
 
 sqs = boto3.client("sqs")
-ORDERS_QUEUE_URL = sqs.get_queue_url(QueueName="OrdersQueue")["QueueUrl"]
+ORDERS_QUEUE_URL = os.environ["ORDERS_QUEUE_URL"]
 
 
 def map_items(ctx: DurableContext, item: dict, index: int, items: list[dict]) -> dict:
