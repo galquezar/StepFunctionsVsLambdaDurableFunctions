@@ -188,7 +188,6 @@ Resources:
   ProcessOrderStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      Name: ProcessOrder
       DefinitionUri: ProcessOrder.asl.json
       DefinitionSubstitutions:
         PaymentFunctionArn: !GetAtt PaymentFunction.Arn
