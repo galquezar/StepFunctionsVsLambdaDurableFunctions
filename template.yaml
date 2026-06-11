@@ -21,7 +21,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: Warehouse
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -35,7 +34,6 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      QueueName: OrdersQueue
       VisibilityTimeout: 300
       MessageRetentionPeriod: 345600
 
@@ -90,8 +88,7 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PaymentFunction'
-                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PaymentFunction:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*'
 
   StateMachineRole:
     Type: AWS::IAM::Role
@@ -149,7 +146,6 @@ Resources:
   OrderProcessingFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: OrderProcessingFunction
       CodeUri: durable/
       Handler: lambda_function.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -165,7 +161,6 @@ Resources:
   PaymentFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: PaymentFunction
       CodeUri: payment/
       Handler: payment_function.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
