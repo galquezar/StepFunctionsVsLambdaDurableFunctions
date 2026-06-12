@@ -11,8 +11,9 @@ import json
 import os
 import boto3
 
+from aws_durable_execution_sdk_python import BatchResult
 from aws_durable_execution_sdk_python.config import Duration
-from aws_durable_execution_sdk_python.context import BatchResult, DurableContext, StepContext, durable_step
+from aws_durable_execution_sdk_python.context import DurableContext, StepContext, durable_step
 from aws_durable_execution_sdk_python.execution import durable_execution
 
 dynamodb = boto3.resource("dynamodb")
