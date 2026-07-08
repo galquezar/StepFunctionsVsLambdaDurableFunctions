@@ -5,6 +5,8 @@ Orchestrates a multi-step order pipeline: stock validation, total calculation,
 payment processing, and shipment confirmation. Steps are replayed idempotently
 on retries, and the workflow suspends (via callback) while waiting for external
 warehouse confirmation before completing.
+
+This is a test change
 """
 
 import json
