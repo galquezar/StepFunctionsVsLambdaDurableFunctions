@@ -1,0 +1,118 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Map",
+  "States": {
+    "Map": {
+      "Type": "Map",
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "GetStock",
+        "States": {
+          "GetStock": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:getItem",
+            "Arguments": {
+              "TableName": "${WarehouseTableName}",
+              "Key": {
+                "id": {
+                  "N": "{% $string($states.input.id) %}"
+                }
+              }
+            },
+            "Output": {
+              "id": "{% $number($states.input.id) %}",
+              "name": "{% $states.input.name %}",
+              "price": "{% $number($states.input.price) %}",
+              "units": "{% $number($states.result.Item.units.N) %}"
+            },
+            "Next": "ValidateStock"
+          },
+          "ValidateStock": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Next": "KeepItem",
+                "Condition": "{% ($states.input.units) > (0) %}"
+              }
+            ],
+            "Default": "RemoveItem"
+          },
+          "KeepItem": {
+            "Type": "Pass",
+            "End": true
+          },
+          "RemoveItem": {
+            "Type": "Pass",
+            "End": true,
+            "Output": null
+          }
+        }
+      },
+      "Items": "{% $states.input.items %}",
+      "Output": {
+        "name": "{% $states.input.name %}",
+        "cardNumber": "{% $states.input.cardNumber %}",
+        "cardHolder": "{% $states.input.cardHolder %}",
+        "expiryDate": "{% $states.input.expiryDate %}",
+        "email": "{% $states.input.email %}",
+        "cvv": "{% $states.input.cvv %}",
+        "items": "{% $states.result %}"
+      },
+      "Next": "CalculateOrderTotal"
+    },
+    "CalculateOrderTotal": {
+      "Type": "Pass",
+      "Output": {
+        "name": "{% $states.input.name %}",
+        "cardNumber": "{% $states.input.cardNumber %}",
+        "cardHolder": "{% $states.input.cardHolder %}",
+        "expiryDate": "{% $states.input.expiryDate %}",
+        "email": "{% $states.input.email %}",
+        "cvv": "{% $states.input.cvv %}",
+        "items": "{% $states.input.items %}",
+        "total": "{% $sum($states.input.items.price) %}"
+      },
+      "Next": "ProcessPayment"
+    },
+    "ProcessPayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "Payload": "{% $states.input %}",
+        "FunctionName": "${PaymentFunctionArn}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "ShipOrder"
+    },
+    "ShipOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Arguments": {
+        "MessageBody": "{% $states.context.Task.Token %}",
+        "QueueUrl": "${OrdersQueueUrl}"
+      },
+      "Next": "SendEmail"
+    },
+    "SendEmail": {
+      "Type": "Pass",
+      "End": true
+    }
+  },
+  "QueryLanguage": "JSONata"
+}

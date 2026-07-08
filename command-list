@@ -1,0 +1,9 @@
+aws stepfunctions send-task-success \
+  --task-token <task-token> \
+  --task-output '{}'
+
+aws lambda send-durable-execution-callback-success \
+  --callback-id <callback-id> \
+  --cli-binary-format raw-in-base64-out \
+  --result '{"status":"approved"}'
+

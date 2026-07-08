@@ -1,0 +1,25 @@
+{
+    "name": "John Doe",
+    "cardNumber": "4111111111111111",
+    "cardHolder": "John Doe",
+    "expiryDate": "12/28",
+    "email": "john.doe@example.com",
+    "cvv": "123",
+    "items": [
+        {
+            "id": 0,
+            "name": "Hass Avocado",
+            "price": 1.80
+        },
+        {
+            "id": 1,
+            "name": "Cavendish Banana",
+            "price": 0.77
+        },
+        {
+            "id": 3,
+            "name": "Onions Bag",
+            "price": 2.90
+        }
+    ]
+}
